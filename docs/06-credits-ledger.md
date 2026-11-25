@@ -84,3 +84,11 @@ pytest tests/test_chat_and_credits.py -v
 psql postgresql://gateway:gateway@localhost:25432/gateway \
   -c "select tenant_id, kind, amount, request_id from credit_transactions order by id desc limit 10"
 ```
+
+## What to look at in the output
+
+* `GET /v1/credits` before and after one request: the difference equals the
+  `cost` field of the newest entry in `GET /v1/usage`.
+* In `credit_transactions`, the sum of `amount` per tenant equals its current
+  `credit_accounts.balance` when no request is in flight (the initial top-up
+  plus negative usage rows; in-flight requests hold a reservation).

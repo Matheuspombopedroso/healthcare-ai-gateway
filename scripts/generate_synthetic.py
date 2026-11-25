@@ -81,6 +81,7 @@ def financial_doc(rng: random.Random) -> dict[str, object]:
 
 
 def main() -> None:
+    """Write ``--n`` seeded records per use case to ``data/synthetic``."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n", type=int, default=20, help="records per use case")
     parser.add_argument("--seed", type=int, default=42)

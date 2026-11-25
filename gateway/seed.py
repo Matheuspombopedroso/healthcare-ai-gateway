@@ -67,6 +67,7 @@ async def seed_tenants(
 
 
 async def _main() -> None:
+    """CLI entry point: create the schema and seed tenants from the environment."""
     settings = Settings.from_env()
     engine = make_engine(settings.database_url)
     await create_schema(engine)

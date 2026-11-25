@@ -9,6 +9,7 @@ from tests.conftest import auth, chat_body
 
 
 async def test_missing_or_bad_key_is_rejected(client):
+    """No key or an unknown key -> 401 on every tenant endpoint."""
     assert (await client.post("/v1/chat/completions", json=chat_body())).status_code == 401
     r = await client.post(
         "/v1/chat/completions", json=chat_body(), headers={"Authorization": "Bearer nope"}
@@ -18,6 +19,7 @@ async def test_missing_or_bad_key_is_rejected(client):
 
 
 async def test_model_allowlist_is_per_tenant(client):
+    """Allowlists are per tenant; unknown models get the same 403."""
     # beta may only use fast-chat; premium-chat is allowed for alpha.
     r = await client.post(
         "/v1/chat/completions", json=chat_body("premium-chat"), headers=auth("K_BETA")
@@ -35,6 +37,7 @@ async def test_model_allowlist_is_per_tenant(client):
 
 
 async def test_usage_and_credits_only_show_own_tenant(client):
+    """A tenant only ever sees its own usage and balance."""
     for _ in range(3):
         await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
     a = (await client.get("/v1/usage", headers=auth("K_ALPHA"))).json()
@@ -50,6 +53,7 @@ async def test_usage_and_credits_only_show_own_tenant(client):
 
 
 async def test_one_tenant_exhausting_budget_does_not_affect_another(client):
+    """Tenant A running out of credits mid-flood leaves tenant B untouched."""
     # "poor" floods until out of credits; "beta" running concurrently is unaffected.
     poor = [
         client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_POOR"))
@@ -73,6 +77,7 @@ async def test_one_tenant_exhausting_budget_does_not_affect_another(client):
 
 
 async def test_rate_limit_of_one_tenant_does_not_throttle_another(client):
+    """Tenant A being rate limited does not throttle tenant B."""
     for _ in range(5):
         await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_TIGHT_RPM"))
     r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_BETA"))
@@ -80,5 +85,6 @@ async def test_rate_limit_of_one_tenant_does_not_throttle_another(client):
 
 
 def test_redis_keys_are_namespaced_by_tenant():
+    """Redis keys embed the tenant id, so counters never collide."""
     assert rpm_key(1, now=0) != rpm_key(2, now=0)
     assert tokens_key(1).startswith("gw:t1:") and tokens_key(2).startswith("gw:t2:")

@@ -53,3 +53,10 @@ pytest tests/test_isolation.py -v
 
 With compose up, section 2 and 4 of `python scripts/demo.py` show the 403
 and each tenant's own balance.
+
+## What to look at in the output
+
+* `GET /v1/usage` with two different keys: each response names its own
+  `tenant` and lists only that tenant's `recent` requests.
+* In Postgres, `select name, api_key_hash from tenants;` shows 64-character
+  hashes, never the keys themselves.

@@ -73,6 +73,8 @@ class OrderItem(BaseModel):
 
 
 class Order(BaseModel):
+    """Top-level order schema; parsing fails loudly if the output is malformed."""
+
     customer_name: str
     items: list[OrderItem]
     delivery: str
@@ -86,6 +88,7 @@ def first_record(use_case: str) -> dict[str, object]:
 
 
 def chat(client: httpx.Client, tenant: str, model: str, system: str, text: str) -> httpx.Response:
+    """Send one non-streaming chat request as ``tenant`` (its own API key)."""
     return client.post(
         f"{GATEWAY}/v1/chat/completions",
         headers={"Authorization": f"Bearer {KEYS[tenant]}"},
@@ -98,6 +101,7 @@ def chat(client: httpx.Client, tenant: str, model: str, system: str, text: str) 
 
 
 def main() -> None:
+    """Run the four demo sections against a running gateway."""
     with httpx.Client(timeout=30) as client:
         print("== 1. one use case per tenant ==")
         for use_case, (tenant, model, system) in USE_CASES.items():

@@ -33,7 +33,8 @@ services:
       - "25432:5432"                   # optional: inspect the ledger with psql
 
   mock-backend:
-    build: .
+    image: healthcare-ai-gateway:local   # built once by the gateway service
+    pull_policy: never
     command: ["uvicorn", "mock_backend.server:app", "--host", "0.0.0.0", "--port", "8500"]
     environment:
       # Latency profile of the fake model: 50 ms to first token, then one
@@ -47,6 +48,7 @@ services:
 
   gateway:
     build: .
+    image: healthcare-ai-gateway:local   # one image for gateway, mock and bench
     environment:
       DATABASE_URL: postgresql+asyncpg://gateway:gateway@postgres:5432/gateway
       REDIS_URL: redis://redis:6379/0
@@ -72,7 +74,8 @@ services:
   # Load generator, run inside the compose network so measurements do not
   # include Docker Desktop's host port forwarding. Only started on demand.
   bench:
-    build: .
+    image: healthcare-ai-gateway:local   # built once by the gateway service
+    pull_policy: never
     profiles: ["bench"]
     entrypoint: ["python", "bench/benchmark.py"]
     depends_on: [gateway]

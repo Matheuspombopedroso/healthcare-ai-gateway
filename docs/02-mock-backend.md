@@ -15,16 +15,16 @@ To still test the gateway end to end we need *something* that:
 
 ## How it works
 
-`mock_backend/server.py` is a ~200-line FastAPI app.
+`mock_backend/server.py` is a ~250-line FastAPI app.
 
 ```python
-await asyncio.sleep(ttft_s)                 # time to first token
+await asyncio.sleep(ttft_s)  # time to first token
 for i, tok in enumerate(tokens):
     if i > 0:
         await asyncio.sleep(inter_token_s)  # decode speed
     yield chunk({"content": tok})
 ...
-if include_usage:                           # OpenAI semantics
+if include_usage:  # OpenAI semantics
     yield final_chunk_with_usage
 yield "data: [DONE]\n\n"
 ```
@@ -37,9 +37,9 @@ yield "data: [DONE]\n\n"
   structured-output contract with pydantic.
 * **Tokens** — words (split on spaces). Not a real tokenizer; it only needs to
   produce consistent usage numbers for billing.
-* **Faults** — `POST /admin/faults {"fail_models": [...], "slow_models": [...]}`
-  makes those model names return HTTP 500 or sleep `MOCK_SLOW_MS` before
-  answering. Tests and `scripts/demo.py` use this.
+* **Faults** — `POST /admin/faults {"fail_models": [...], "slow_models": [...], "break_models": [...]}`
+  makes those model names return HTTP 500, sleep `MOCK_SLOW_MS` before
+  answering, or cut the stream after `MOCK_BREAK_AFTER` tokens (default 3). Tests and `scripts/demo.py` use this.
 
 ## What this means for the numbers
 

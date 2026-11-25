@@ -62,6 +62,7 @@ class Limiter:
     """Thin wrapper over Redis implementing the two tenant controls."""
 
     def __init__(self, redis: Redis) -> None:
+        """Register the Lua reservation script on the given Redis client."""
         self.redis = redis
         self._reserve = redis.register_script(_RESERVE_LUA)
 

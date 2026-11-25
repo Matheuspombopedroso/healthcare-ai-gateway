@@ -16,21 +16,25 @@ SPEC_DEAR = ModelSpec("b", {"model": "openai/b"}, price_in_per_1k=500, price_out
 
 
 def test_cost_rounds_up_to_whole_millicredits():
+    """Charges round up to whole millicredits, never down."""
     assert cost_of(SPEC_CHEAP, 1000, 1000) == 300
     assert cost_of(SPEC_CHEAP, 1, 0) == 1  # 0.1 rounds up, never down
     assert cost_of(SPEC_CHEAP, 0, 0) == 0
 
 
 def test_worst_case_uses_most_expensive_model_in_chain():
+    """Reservation prices the most expensive model in the fallback chain."""
     assert worst_case_cost([SPEC_CHEAP, SPEC_DEAR], 100, 100) == cost_of(SPEC_DEAR, 100, 100)
 
 
 def test_prompt_estimate_is_upper_bound_on_chars():
+    """Prompt-token estimate is at least the character count."""
     msgs = [{"role": "user", "content": "hello world"}]
     assert estimate_prompt_tokens(msgs) >= len("hello world")
 
 
 def test_parse_bearer():
+    """Only well-formed 'Bearer <key>' headers yield a key."""
     assert parse_bearer("Bearer abc") == "abc"
     assert parse_bearer("bearer  abc ") == "abc"
     assert parse_bearer("Basic abc") is None
@@ -38,11 +42,13 @@ def test_parse_bearer():
 
 
 def test_hash_key_is_stable_sha256():
+    """Key hashing is deterministic SHA-256 hex."""
     assert hash_key("x") == hash_key("x")
     assert len(hash_key("x")) == 64
 
 
 def test_model_config_expands_env_and_validates(tmp_path: Path):
+    """Unknown fallback aliases and missing env vars fail at load time."""
     cfg = tmp_path / "m.yaml"
     cfg.write_text(
         "models:\n"
@@ -59,6 +65,7 @@ def test_model_config_expands_env_and_validates(tmp_path: Path):
 
 
 def test_mock_tokenizer_roundtrips_and_honors_max_tokens():
+    """Mock tokens re-join to the exact text and respect max_tokens."""
     text = pick_output([ChatMessage(role="system", content="[task:order_extraction]")])
     assert "".join(tokenize_output(text, None)) == text
     assert len(tokenize_output(text, 3)) == 3

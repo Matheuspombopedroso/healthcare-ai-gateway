@@ -7,6 +7,7 @@ from tests.conftest import auth, chat_body
 
 
 async def test_primary_http_error_falls_back(client, set_faults):
+    """Primary HTTP 500 -> served by backup-chat, billed at backup price, counted."""
     set_faults(fail=["mock-fast"])
     r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
     assert r.status_code == 200, r.text
@@ -33,6 +34,7 @@ async def test_primary_http_error_falls_back(client, set_faults):
 
 
 async def test_primary_timeout_falls_back(client, set_faults):
+    """Primary not streaming within stream_timeout -> served by backup-chat."""
     # The slow model sleeps 4 s before answering; stream_timeout is 2 s.
     set_faults(slow=["mock-premium"])
     r = await client.post(
@@ -43,6 +45,7 @@ async def test_primary_timeout_falls_back(client, set_faults):
 
 
 async def test_all_models_failing_returns_502_and_refunds(client, set_faults):
+    """Whole chain failing -> 502, credits and quota reservations returned."""
     set_faults(fail=["mock-fast", "mock-backup"])
     before = (await client.get("/v1/credits", headers=auth("K_ALPHA"))).json()
     r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
@@ -55,6 +58,26 @@ async def test_all_models_failing_returns_502_and_refunds(client, set_faults):
 
 
 async def test_no_fallback_when_primary_healthy(client, set_faults):
+    """A healthy primary serves the request itself."""
     set_faults()
     r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
     assert r.headers["x-gateway-served-model"] == "fast-chat"
+
+
+async def test_mid_stream_failure_is_not_retried_and_bills_delivered_tokens(client, set_faults):
+    """Primary dies after 3 tokens: no fallback, 502, billed only for what was sent."""
+    set_faults(break_=["mock-fast"])
+    before = (await client.get("/v1/credits", headers=auth("K_ALPHA"))).json()
+    r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
+    assert r.status_code == 502
+
+    event = (await client.get("/v1/usage", headers=auth("K_ALPHA"))).json()["recent"][0]
+    assert event["status"] == "error"
+    assert event["served_model"] == "fast-chat"  # no silent switch to backup-chat
+    assert event["fallback_used"] is False
+    # The mock had no chance to report usage, so the gateway billed the
+    # conservative fallback: one token per delivered chunk (3) plus the
+    # prompt upper bound.
+    assert event["completion_tokens"] == 3
+    after = (await client.get("/v1/credits", headers=auth("K_ALPHA"))).json()
+    assert before["balance_millicredits"] - after["balance_millicredits"] == event["cost"] > 0

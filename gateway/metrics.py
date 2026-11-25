@@ -28,6 +28,7 @@ class GatewayMetrics:
     """All gateway metrics, registered on a private registry."""
 
     def __init__(self) -> None:
+        """Create every metric on a fresh private registry."""
         self.registry = CollectorRegistry()
         self.requests = Counter(
             "gateway_requests_total",

@@ -65,3 +65,10 @@ reservation (Part 6) could be bounded.
 pytest tests/test_quotas.py -v
 redis-cli -p 16379 -n 15 keys 'gw:*'    # while tests run, to see the key layout
 ```
+
+## What to look at in the output
+
+* After a few requests, `GET /v1/usage` shows `tokens_used_today` equal to
+  `prompt_tokens + completion_tokens` (reservations were settled to real usage).
+* A rejected request returns `{"error": {"type": "rate_limit_error" | "quota_exceeded", ...}}`
+  with status 429, and `gateway_rejections_total{reason=...}` increases.

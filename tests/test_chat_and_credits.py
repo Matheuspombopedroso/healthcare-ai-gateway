@@ -10,6 +10,7 @@ from tests.conftest import auth, chat_body
 
 
 async def test_non_streaming_chat_bills_exact_token_cost(client):
+    """Balance drops by exactly ceil(tokens x price) and the ledger records it."""
     before = (await client.get("/v1/credits", headers=auth("K_ALPHA"))).json()
     r = await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
     assert r.status_code == 200, r.text
@@ -31,6 +32,7 @@ async def test_non_streaming_chat_bills_exact_token_cost(client):
 
 
 async def test_streaming_relays_sse_and_reports_usage(client):
+    """SSE chunks reassemble into the full answer and a usage chunk is sent."""
     body = chat_body(stream=True, stream_options={"include_usage": True})
     chunks, usage = [], None
     async with client.stream(
@@ -50,6 +52,7 @@ async def test_streaming_relays_sse_and_reports_usage(client):
 
 
 async def test_insufficient_credits_returns_402(client):
+    """Once the balance cannot cover a reservation, requests get 402."""
     # "poor" has 60 millicredits; keep sending until the reservation fails.
     statuses = []
     for _ in range(20):
@@ -87,6 +90,7 @@ async def test_concurrent_flood_never_overspends(client):
 
 
 async def test_admin_topup_requires_admin_token(client):
+    """Tenant keys cannot top up; the admin token can."""
     r = await client.post(
         "/admin/credits/topup", json={"tenant": "poor", "amount": 1000}, headers=auth("K_POOR")
     )
@@ -101,6 +105,7 @@ async def test_admin_topup_requires_admin_token(client):
 
 
 async def test_metrics_endpoint_exposes_gateway_series(client):
+    """/metrics exposes request counters and TTFT/throughput histograms."""
     await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_ALPHA"))
     text = (await client.get("/metrics")).text
     assert 'gateway_requests_total{model="fast-chat",status="ok",tenant="alpha"} 1.0' in text

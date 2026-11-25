@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Create the DB engine, Redis pool, router and metrics once per process."""
         # Build every long-lived dependency once per process.
         engine = make_engine(settings.database_url, settings.db_pool_size)
         # Bounded, blocking pool: under a burst, callers wait for a free
@@ -91,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(GatewayError)
     async def gateway_error_handler(_: Request, exc: GatewayError) -> JSONResponse:
+        """Render a ``GatewayError`` as an OpenAI-style JSON error body."""
         return JSONResponse(exc.body(), status_code=exc.status)
 
     async def authenticate(request: Request, authorization: str | None) -> Tenant:
@@ -104,14 +106,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
+        """Liveness probe: the process is up and serving HTTP."""
         return {"status": "ok"}
 
     @app.get("/metrics")
     async def metrics(request: Request) -> Response:
+        """Prometheus scrape endpoint (text exposition format)."""
         return Response(request.app.state.metrics.render(), media_type="text/plain; version=0.0.4")
 
     @app.post("/v1/chat/completions", response_model=None)
     async def chat(request: Request, authorization: str | None = Header(default=None)) -> Response:
+        """OpenAI-compatible chat completion: admit, then stream or return JSON."""
         started = time.perf_counter()  # TTFT and latency are measured from here
         tenant = await authenticate(request, authorization)
         try:
@@ -140,6 +145,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def credits(
         request: Request, authorization: str | None = Header(default=None)
     ) -> dict[str, Any]:
+        """Return the caller's own prepaid balance (tenant comes from the key)."""
         tenant = await authenticate(request, authorization)
         balance = await request.app.state.ledger.balance(tenant.id)
         return {"tenant": tenant.name, "balance_millicredits": balance}
@@ -148,6 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def usage(
         request: Request, authorization: str | None = Header(default=None)
     ) -> dict[str, Any]:
+        """Return the caller's own usage ledger summary and today's token count."""
         tenant = await authenticate(request, authorization)
         summary = await request.app.state.ledger.usage_summary(tenant.id)
         limiter: Limiter = request.app.state.pipeline.limiter
@@ -159,6 +166,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def topup(
         request: Request, body: TopUp, x_admin_token: str | None = Header(default=None)
     ) -> dict[str, Any]:
+        """Add prepaid credits to a tenant; requires the admin token, not a tenant key."""
         # Tenant keys can never reach this endpoint: it uses a separate secret.
         if (
             not settings.admin_token

@@ -78,6 +78,7 @@ class CreditLedger:
     """All reads and writes of credits and usage go through this class."""
 
     def __init__(self, engine: AsyncEngine) -> None:
+        """Keep the async engine; every method opens its own short transaction."""
         self.engine = engine
 
     async def reserve(self, tenant_id: int, amount: int) -> bool:

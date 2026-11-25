@@ -22,6 +22,9 @@ MOCK_FAIL_MODELS      comma-separated model names that always return HTTP 500
 MOCK_SLOW_MODELS      comma-separated model names that sleep MOCK_SLOW_MS
                       before answering (used to trigger gateway timeouts)
 MOCK_SLOW_MS          how long "slow" models sleep (default 5000)
+MOCK_BREAK_MODELS     comma-separated model names whose stream is cut after
+                      MOCK_BREAK_AFTER tokens (default 3), simulating a
+                      backend crash in the middle of a response
 
 The fail/slow lists can also be changed at runtime through ``POST /admin/faults``
 so tests and demos can break the primary model without restarting anything.
@@ -86,6 +89,7 @@ class Faults(BaseModel):
 
     fail_models: set[str] = Field(default_factory=set)
     slow_models: set[str] = Field(default_factory=set)
+    break_models: set[str] = Field(default_factory=set)
 
 
 class ChatMessage(BaseModel):
@@ -142,17 +146,21 @@ def create_app() -> FastAPI:
     faults = Faults(
         fail_models=_env_set("MOCK_FAIL_MODELS"),
         slow_models=_env_set("MOCK_SLOW_MODELS"),
+        break_models=_env_set("MOCK_BREAK_MODELS"),
     )
     ttft_s = float(os.getenv("MOCK_TTFT_MS", "50")) / 1000
     inter_token_s = float(os.getenv("MOCK_INTER_TOKEN_MS", "10")) / 1000
     slow_s = float(os.getenv("MOCK_SLOW_MS", "5000")) / 1000
+    break_after = int(os.getenv("MOCK_BREAK_AFTER", "3"))
 
     @app.get("/health")
     async def health() -> dict[str, str]:
+        """Liveness probe."""
         return {"status": "ok"}
 
     @app.get("/v1/models")
     async def models() -> dict[str, Any]:
+        """Minimal ``/v1/models`` so OpenAI clients that probe it do not fail."""
         # Some clients probe this endpoint; any model name is accepted.
         return {"object": "list", "data": []}
 
@@ -161,10 +169,12 @@ def create_app() -> FastAPI:
         """Replace the fault-injection state (used by tests and the demo)."""
         faults.fail_models = new.fail_models
         faults.slow_models = new.slow_models
+        faults.break_models = new.break_models
         return faults
 
     @app.post("/v1/chat/completions", response_model=None)
     async def chat(req: ChatRequest) -> JSONResponse | StreamingResponse:
+        """Serve one chat completion, streaming or not, after fault injection."""
         # Fault injection happens before any byte is sent, which is exactly the
         # failure mode the gateway's fallback is designed to handle.
         if req.model in faults.fail_models:
@@ -205,7 +215,10 @@ def create_app() -> FastAPI:
         include_usage = bool((req.stream_options or {}).get("include_usage"))
 
         async def event_stream():  # type: ignore[no-untyped-def]
+            """Yield SSE lines: delayed first token, paced tokens, usage, ``[DONE]``."""
+
             def chunk(delta: dict[str, Any], finish: str | None = None) -> str:
+                """Format one OpenAI ``chat.completion.chunk`` as an SSE ``data:`` line."""
                 body = {
                     "id": resp_id,
                     "object": "chat.completion.chunk",
@@ -216,7 +229,12 @@ def create_app() -> FastAPI:
                 return f"data: {json.dumps(body)}\n\n"
 
             await asyncio.sleep(ttft_s)
+            breaks = req.model in faults.break_models
             for i, tok in enumerate(tokens):
+                if breaks and i == break_after:
+                    # Abort mid-response: the HTTP stream ends without a
+                    # finish chunk, usage or [DONE], like a crashed server.
+                    raise RuntimeError(f"injected mid-stream failure for {req.model}")
                 if i > 0:
                     await asyncio.sleep(inter_token_s)
                 delta = {"role": "assistant", "content": tok} if i == 0 else {"content": tok}

@@ -46,6 +46,7 @@ class ModelRouter:
     """Builds a LiteLLM Router from the model catalogue."""
 
     def __init__(self, models: dict[str, ModelSpec]) -> None:
+        """Build the LiteLLM Router (aliases, deployments, fallbacks) from the catalogue."""
         self.models = models
         # Reverse map so we can tell which alias a response really came from.
         self._alias_by_backend = {spec.backend_model: alias for alias, spec in models.items()}

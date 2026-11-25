@@ -28,8 +28,8 @@ price and a fallback list:
 Router(
     model_list=[{"model_name": alias, "litellm_params": ...}, ...],
     fallbacks=[{"fast-chat": ["backup-chat"]}, ...],
-    num_retries=0,          # failing primary goes straight to the fallback
-    disable_cooldowns=True, # one error must not bench a deployment for minutes
+    num_retries=0,  # failing primary goes straight to the fallback
+    disable_cooldowns=True,  # one error must not bench a deployment for minutes
 )
 ```
 
@@ -56,7 +56,7 @@ backends, plus timeouts and fallbacks.
 | primary returns HTTP 500 before streaming | served by `backup-chat` |
 | primary does not start streaming within `stream_timeout` | served by `backup-chat` |
 | primary and backup both fail | HTTP 502, reservation fully refunded |
-| primary fails **after** tokens were sent | no fallback; error event; billed for what was delivered |
+| primary fails **after** tokens were sent | no fallback; streaming clients get an error event, non-streaming clients a 502; billed for what was delivered |
 
 The last row is a deliberate trade-off: once the client has seen partial
 output, silently continuing with a different model would splice two answers.
@@ -69,3 +69,12 @@ pytest tests/test_fallback.py -v
 
 Or with the compose stack up, `python scripts/demo.py` — section 3 breaks
 `mock-fast` and shows the request still answered by `backup-chat`.
+
+## What to look at in the output
+
+* `pytest tests/test_fallback.py -v` — five tests, one per row of the table
+  above plus the healthy case.
+* Response headers of a fallback request:
+  `x-gateway-served-model: backup-chat`, `x-gateway-fallback: true`.
+* `curl -s localhost:8400/metrics | grep gateway_fallbacks_total` — the counter
+  increases once per fallback, labelled with requested and served model.

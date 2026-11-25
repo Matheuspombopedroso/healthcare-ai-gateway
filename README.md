@@ -71,6 +71,7 @@ order, with excerpts and how to run just that part:
 6. [Prepaid credits and the usage ledger](docs/06-credits-ledger.md)
 7. [Metrics and benchmarks](docs/07-metrics-and-benchmarks.md)
 8. [Deployment: Docker Compose, vLLM and CI](docs/08-deployment.md)
+9. [Synthetic data and the demo use cases](docs/09-demo-use-cases.md)
 
 Raw benchmark output: [docs/benchmarks.md](docs/benchmarks.md).
 
@@ -117,9 +118,10 @@ curl -s localhost:8400/metrics | grep gateway_
 
 ```python
 from openai import OpenAI
+
 client = OpenAI(base_url="http://localhost:8400/v1", api_key="dev-omnimagistral-key")
 r = client.chat.completions.create(model="fast-chat", max_tokens=200, messages=[...])
-print(r.choices[0].message.content, r.model)   # r.model = model that actually served
+print(r.choices[0].message.content, r.model)  # r.model = model that actually served
 ```
 
 Response headers: `x-request-id`, `x-gateway-served-model`, `x-gateway-fallback`.
@@ -166,7 +168,7 @@ BENCHMARK_TABLE_PLACEHOLDER
 
 ## Tests
 
-`pytest` runs 27 tests against **real Redis and Postgres** (local containers or
+`pytest` runs 28 tests against **real Redis and Postgres** (local containers or
 GitHub Actions services) and the mock backend:
 
 * `test_isolation.py` — 401s, per-tenant allowlist, usage/credits visible only
@@ -176,7 +178,8 @@ GitHub Actions services) and the mock backend:
 * `test_chat_and_credits.py` — exact token billing, streaming relay, 402,
   30-way concurrent flood never overspends, admin top-up, `/metrics`;
 * `test_fallback.py` — primary 500 → fallback, primary timeout → fallback,
-  billing at the served model, all-fail → 502 with full refund;
+  billing at the served model, all-fail → 502 with full refund, mid-stream
+  failure → no fallback and billing of delivered tokens only;
 * `test_units.py` — pricing, config validation, auth helpers, mock tokenizer.
 
 ## Limitations

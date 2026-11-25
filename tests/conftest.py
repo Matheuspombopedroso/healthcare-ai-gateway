@@ -90,10 +90,19 @@ def mock_backend() -> Iterator[str]:
 def set_faults(mock_backend: str) -> Iterator[object]:
     """Inject failures into the mock; always cleared after the test."""
 
-    def _set(fail: list[str] | None = None, slow: list[str] | None = None) -> None:
+    def _set(
+        fail: list[str] | None = None,
+        slow: list[str] | None = None,
+        break_: list[str] | None = None,
+    ) -> None:
+        """fail: HTTP 500; slow: hang before answering; break_: cut stream mid-way."""
         httpx.post(
             f"{mock_backend}/admin/faults",
-            json={"fail_models": fail or [], "slow_models": slow or []},
+            json={
+                "fail_models": fail or [],
+                "slow_models": slow or [],
+                "break_models": break_ or [],
+            },
         ).raise_for_status()
 
     yield _set

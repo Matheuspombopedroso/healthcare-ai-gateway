@@ -8,6 +8,7 @@ from tests.conftest import auth, chat_body
 
 
 async def test_rate_limit_returns_429_after_rpm(client):
+    """Requests beyond rpm_limit in a window get 429."""
     codes = [
         (
             await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_TIGHT_RPM"))
@@ -21,6 +22,7 @@ async def test_rate_limit_returns_429_after_rpm(client):
 
 
 async def test_rejected_requests_do_not_touch_credits(client):
+    """429 rejections happen before any credit is reserved."""
     before = (await client.get("/v1/credits", headers=auth("K_TIGHT_RPM"))).json()
     for _ in range(3):
         await client.post("/v1/chat/completions", json=chat_body(), headers=auth("K_TIGHT_RPM"))
@@ -51,6 +53,7 @@ async def test_token_quota_is_enforced_and_atomic(client):
 
 
 async def test_max_tokens_is_bounded(client):
+    """max_tokens above the cap is refused (keeps reservations bounded)."""
     r = await client.post(
         "/v1/chat/completions", json=chat_body(max_tokens=100_000), headers=auth("K_ALPHA")
     )

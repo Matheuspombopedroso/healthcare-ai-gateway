@@ -65,6 +65,7 @@ def percentile(values: list[float], p: float) -> float:
 
 
 async def one_request(client: httpx.AsyncClient, url: str, model: str, max_tokens: int) -> Sample:
+    """Send one streaming request and measure TTFT, latency and completion tokens."""
     body = {
         "model": model,
         "messages": PROMPT,
@@ -104,6 +105,7 @@ async def one_request(client: httpx.AsyncClient, url: str, model: str, max_token
 
 
 async def run_level(args: argparse.Namespace, concurrency: int) -> dict[str, object]:
+    """Warm up, then run ``--requests`` requests at one concurrency level and summarise."""
     headers = {"Authorization": f"Bearer {args.key}"} if args.key else {}
     limits = httpx.Limits(max_connections=concurrency, max_keepalive_connections=concurrency)
     samples: list[Sample] = []
@@ -119,6 +121,7 @@ async def run_level(args: argparse.Namespace, concurrency: int) -> dict[str, obj
         )
 
         async def worker() -> None:
+            """Take requests from the shared budget until none remain (closed loop)."""
             nonlocal remaining
             while remaining > 0:
                 remaining -= 1
@@ -157,6 +160,7 @@ async def run_level(args: argparse.Namespace, concurrency: int) -> dict[str, obj
 
 
 async def main() -> None:
+    """Parse arguments and run every requested concurrency level."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )

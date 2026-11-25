@@ -23,6 +23,7 @@ import asyncio
 import json
 import time
 import uuid
+from contextlib import aclosing
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,12 +46,14 @@ class GatewayError(Exception):
     """An error returned to the client in OpenAI's error format."""
 
     def __init__(self, status: int, code: str, message: str) -> None:
+        """Store the HTTP status, error type code and human-readable message."""
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
 
     def body(self) -> dict[str, Any]:
+        """The JSON body sent to the client (OpenAI error shape)."""
         return {"error": {"message": self.message, "type": self.code, "code": self.status}}
 
 
@@ -96,6 +99,7 @@ class ChatPipeline:
         ledger: CreditLedger,
         metrics: GatewayMetrics,
     ) -> None:
+        """Wire the pipeline to its collaborators (all created once per process)."""
         self.settings = settings
         self.router = router
         self.limiter = limiter
@@ -234,16 +238,20 @@ class ChatPipeline:
         content: list[str] = []
         finish = "stop"
         usage: dict[str, int] = {}
-        async for line in self.relay(adm, include_usage=True):
-            if not line.startswith("data: {"):
-                continue
-            payload = json.loads(line[6:])
-            if "error" in payload:
-                raise GatewayError(502, "upstream_error", payload["error"]["message"])
-            usage = payload.get("usage") or usage
-            for ch in payload.get("choices", []):
-                content.append(ch["delta"].get("content") or "")
-                finish = ch.get("finish_reason") or finish
+        # aclosing() guarantees the relay generator is closed -- and therefore
+        # settles -- right here, even when we raise out of the loop below,
+        # instead of whenever the garbage collector finalizes it.
+        async with aclosing(self.relay(adm, include_usage=True)) as lines:
+            async for line in lines:
+                if not line.startswith("data: {"):
+                    continue
+                payload = json.loads(line[6:])
+                if "error" in payload:
+                    raise GatewayError(502, "upstream_error", payload["error"]["message"])
+                usage = payload.get("usage") or usage
+                for ch in payload.get("choices", []):
+                    content.append(ch["delta"].get("content") or "")
+                    finish = ch.get("finish_reason") or finish
         assert adm.upstream is not None
         return {
             "id": adm.request_id,
