@@ -1,0 +1,48 @@
+# Model catalogue for the gateway.
+#
+# Tenants never talk to a backend directly: they request a *public alias*
+# (e.g. "fast-chat"), and the gateway's LiteLLM Router maps that alias to a
+# concrete deployment. Changing the backend (mock -> vLLM -> hosted API) is a
+# config change here, not a code change in the tenants' products.
+#
+# ${MOCK_BASE_URL} is expanded from the environment when the file is loaded
+# (see gateway/config.py), so the same file works locally, in Docker and in CI.
+
+models:
+  - alias: fast-chat                 # public name tenants put in "model"
+    litellm_params:
+      model: openai/mock-fast        # "openai/" = any OpenAI-compatible server
+      api_base: ${MOCK_BASE_URL}
+      api_key: not-needed            # the mock ignores it; vLLM can too
+      timeout: 10                    # seconds, non-streaming calls
+      stream_timeout: 2              # seconds until the stream must start;
+                                     # exceeding it triggers the fallback
+    # Prices in millicredits per 1,000 tokens (integers keep accounting exact).
+    price_in_per_1k: 100
+    price_out_per_1k: 200
+    fallbacks: [backup-chat]
+
+  - alias: premium-chat
+    litellm_params:
+      model: openai/mock-premium
+      api_base: ${MOCK_BASE_URL}
+      api_key: not-needed
+      timeout: 10
+      stream_timeout: 2
+    price_in_per_1k: 500
+    price_out_per_1k: 1500
+    fallbacks: [backup-chat]
+
+  # Secondary model used only as a fallback target. In a real deployment this
+  # would be a different backend (another vLLM replica, a smaller model or a
+  # hosted API) so that one outage does not take both down.
+  - alias: backup-chat
+    litellm_params:
+      model: openai/mock-backup
+      api_base: ${MOCK_BASE_URL}
+      api_key: not-needed
+      timeout: 10
+      stream_timeout: 5
+    price_in_per_1k: 100
+    price_out_per_1k: 300
+    fallbacks: []

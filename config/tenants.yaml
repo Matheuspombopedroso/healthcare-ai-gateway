@@ -1,0 +1,40 @@
+# Simulated tenants (products sharing the gateway). All values are demo data.
+#
+# API keys are NOT stored here: each tenant's key is read from the environment
+# variable named in `api_key_env` and only its SHA-256 hash goes to Postgres.
+#
+#   allowed_models     public aliases this tenant may request (allowlist)
+#   rpm_limit          requests per minute (Redis fixed window)
+#   daily_token_quota  prompt+completion tokens per UTC day (Redis)
+#   initial_credits    prepaid balance in millicredits, set when first seeded
+
+tenants:
+  - name: clinibud            # SaaS for clinics: appointment admin summaries
+    api_key_env: TENANT_KEY_CLINIBUD
+    allowed_models: [fast-chat, premium-chat]
+    rpm_limit: 60
+    daily_token_quota: 200000
+    initial_credits: 5000000
+
+  - name: omnimagistral       # compounding pharmacies: order extraction
+    api_key_env: TENANT_KEY_OMNIMAGISTRAL
+    allowed_models: [fast-chat]
+    rpm_limit: 60
+    daily_token_quota: 100000
+    initial_credits: 2000000
+
+  - name: plutus              # finance: document classification
+    api_key_env: TENANT_KEY_PLUTUS
+    allowed_models: [premium-chat]
+    rpm_limit: 30
+    daily_token_quota: 50000
+    initial_credits: 1000000
+
+  # Synthetic tenant used only by the load benchmark, with limits high enough
+  # that the benchmark measures latency, not the rate limiter.
+  - name: loadtest
+    api_key_env: TENANT_KEY_LOADTEST
+    allowed_models: [fast-chat, premium-chat]
+    rpm_limit: 100000
+    daily_token_quota: 100000000
+    initial_credits: 1000000000000

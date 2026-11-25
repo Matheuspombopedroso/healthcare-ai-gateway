@@ -1,0 +1,46 @@
+# Example catalogue pointing at real vLLM servers (NOT run in this repo's
+# benchmarks: the development machine has no GPU).
+#
+# Start a vLLM OpenAI-compatible server, e.g.:
+#   vllm serve Qwen/Qwen2.5-1.5B-Instruct --port 8000
+# then set VLLM_PRIMARY_URL=http://<host>:8000/v1 and point the gateway at this
+# file with MODELS_CONFIG=config/models.vllm.yaml.
+#
+# "hosted_vllm/" is LiteLLM's provider prefix for a self-hosted vLLM server;
+# the part after the slash must be the model name vLLM was started with.
+
+models:
+  - alias: fast-chat
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-1.5B-Instruct
+      api_base: ${VLLM_PRIMARY_URL}
+      api_key: not-needed
+      timeout: 60
+      stream_timeout: 5
+    price_in_per_1k: 100
+    price_out_per_1k: 200
+    fallbacks: [backup-chat]
+
+  - alias: premium-chat
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-7B-Instruct
+      api_base: ${VLLM_PREMIUM_URL}
+      api_key: not-needed
+      timeout: 120
+      stream_timeout: 10
+    price_in_per_1k: 500
+    price_out_per_1k: 1500
+    fallbacks: [backup-chat]
+
+  # Fallback on a different server, so a crash of the primary replica is
+  # survivable. Could equally be a CPU llama.cpp server or a hosted API.
+  - alias: backup-chat
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-0.5B-Instruct
+      api_base: ${VLLM_BACKUP_URL}
+      api_key: not-needed
+      timeout: 60
+      stream_timeout: 10
+    price_in_per_1k: 100
+    price_out_per_1k: 300
+    fallbacks: []

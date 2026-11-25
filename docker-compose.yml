@@ -1,0 +1,99 @@
+# Local stack: gateway + Redis + Postgres + mock OpenAI-compatible backend.
+#
+#   docker compose up --build          # start everything
+#   python scripts/demo.py             # exercise it from the host
+#   docker compose --profile bench run --rm bench ...   # load test inside the network
+#
+# Tenant API keys below are LOCAL DEVELOPMENT placeholders (overridable from
+# a .env file, see .env.example). Never reuse them anywhere real.
+
+services:
+  redis:
+    image: redis:7-alpine
+    # Quotas and rate-limit counters are rebuilt naturally (they expire), so
+    # no persistence is configured for Redis in this demo.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway       # local demo only
+      POSTGRES_DB: gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # the credit ledger survives restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway"]
+      interval: 2s
+      retries: 30
+    ports:
+      - "25432:5432"                   # optional: inspect the ledger with psql
+
+  mock-backend:
+    build: .
+    command: ["uvicorn", "mock_backend.server:app", "--host", "0.0.0.0", "--port", "8500"]
+    environment:
+      # Latency profile of the fake model: 50 ms to first token, then one
+      # token every 10 ms (~100 tokens/s per stream). Every benchmark in
+      # docs/benchmarks.md states the values it used.
+      MOCK_TTFT_MS: ${MOCK_TTFT_MS:-50}
+      MOCK_INTER_TOKEN_MS: ${MOCK_INTER_TOKEN_MS:-10}
+      MOCK_SLOW_MS: "5000"
+    ports:
+      - "8500:8500"                    # exposed so the demo can inject faults
+
+  gateway:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gateway:gateway@postgres:5432/gateway
+      REDIS_URL: redis://redis:6379/0
+      MOCK_BASE_URL: http://mock-backend:8500/v1   # used by config/models.yaml
+      MODELS_CONFIG: config/models.yaml            # config/models.vllm.yaml for vLLM
+      SEED_ON_STARTUP: "true"                      # create tenants from config/tenants.yaml
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      TENANT_KEY_CLINIBUD: ${TENANT_KEY_CLINIBUD:-dev-clinibud-key}
+      TENANT_KEY_OMNIMAGISTRAL: ${TENANT_KEY_OMNIMAGISTRAL:-dev-omnimagistral-key}
+      TENANT_KEY_PLUTUS: ${TENANT_KEY_PLUTUS:-dev-plutus-key}
+      TENANT_KEY_LOADTEST: ${TENANT_KEY_LOADTEST:-dev-loadtest-key}
+      DB_POOL_SIZE: "20"
+    # One worker process: the async event loop handles concurrency. Scaling
+    # out means more replicas behind a load balancer (state is in Redis/PG).
+    command: ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8400", "--no-access-log"]
+    ports:
+      - "8400:8400"
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      mock-backend: { condition: service_started }
+
+  # Load generator, run inside the compose network so measurements do not
+  # include Docker Desktop's host port forwarding. Only started on demand.
+  bench:
+    build: .
+    profiles: ["bench"]
+    entrypoint: ["python", "bench/benchmark.py"]
+    depends_on: [gateway]
+
+  # Real vLLM backend (needs an NVIDIA GPU + nvidia-container-toolkit).
+  # NOT run for this repo's measurements -- the dev machine has no GPU.
+  # Usage: docker compose --profile vllm up vllm, then point the gateway at
+  # config/models.vllm.yaml with VLLM_PRIMARY_URL=http://vllm:8000/v1.
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles: ["vllm"]
+    command: ["--model", "Qwen/Qwen2.5-1.5B-Instruct", "--max-model-len", "4096"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
