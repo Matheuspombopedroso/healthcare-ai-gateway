@@ -23,8 +23,8 @@ import asyncio
 import json
 import time
 import uuid
-from contextlib import aclosing
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from typing import Any
 
