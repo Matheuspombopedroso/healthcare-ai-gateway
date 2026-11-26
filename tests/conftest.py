@@ -2,8 +2,10 @@
 
 Tests run against REAL Redis and PostgreSQL (the behaviours under test --
 atomic Lua scripts, conditional UPDATEs, CHECK constraints -- are exactly the
-things an in-memory fake could get subtly wrong). Locally they come from the
-containers described in the README; in CI from GitHub Actions ``services``.
+things an in-memory fake could get subtly wrong). Locally they come from any
+Redis/Postgres pointed to by TEST_REDIS_URL / TEST_DATABASE_URL (containers or
+native processes, see docs/08-deployment.md); in CI from GitHub Actions
+``services``.
 
 The mock model backend runs in a background thread on a free port, with tiny
 latencies so the suite is fast.

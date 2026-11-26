@@ -44,3 +44,30 @@ jobs:
           ruff format --check .
       - name: Tests
         run: pytest -q
+
+  # End-to-end smoke test of the real stack: build the image, start
+  # gateway + Redis + Postgres + mock with docker compose, then run the demo
+  # script from the runner against the published ports.
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start stack
+        run: docker compose up -d --build
+      - name: Wait for gateway
+        run: curl -sf --retry 60 --retry-connrefused --retry-delay 2 http://localhost:8400/health
+      - name: Run demo (one request per tenant, isolation, fallback, balances)
+        run: |
+          pip install httpx pydantic
+          python scripts/generate_synthetic.py
+          python scripts/demo.py
+          curl -s http://localhost:8400/metrics | grep gateway_requests_total
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

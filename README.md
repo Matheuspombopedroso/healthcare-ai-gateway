@@ -190,8 +190,9 @@ rows are the mock alone; the useful number is what the gateway adds.
 
 ## Tests
 
-`pytest` runs 28 tests against **real Redis and Postgres** (local containers or
-GitHub Actions services) and the mock backend:
+`pytest` runs 28 tests against **real Redis and Postgres** (a local Redis/Postgres —
+containers or native processes, see docs/08 — or GitHub Actions services) and
+the mock backend:
 
 * `test_isolation.py` — 401s, per-tenant allowlist, usage/credits visible only
   to their owner, one tenant exhausting its budget or RPM does not affect another;
