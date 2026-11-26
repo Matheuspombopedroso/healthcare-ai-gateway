@@ -51,9 +51,15 @@ size: `DB_POOL_SIZE` (Postgres connections per replica) and the Redis pool
 
 ## CI (`.github/workflows/ci.yml`)
 
-On every push: install, `ruff check`, `ruff format --check`, `pytest`.
-Redis and Postgres run as GitHub Actions **service containers**, so CI runs
-the same real-infrastructure tests as a developer machine.
+Two jobs on every push:
+
+* `test` — install, `ruff check`, `ruff format --check`, `pytest`. Redis and
+  Postgres run as GitHub Actions **service containers**, so CI runs the same
+  real-infrastructure tests as a developer machine.
+* `compose` — `docker compose up -d --build`, wait for `/health`, then run
+  `scripts/generate_synthetic.py` and `scripts/demo.py` from the runner and
+  print `gateway_requests_total` from `/metrics`. This is the end-to-end check
+  that the Dockerfile and compose file actually work.
 
 ## Running tests locally
 

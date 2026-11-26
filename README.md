@@ -222,10 +222,11 @@ the mock backend:
   mode is not configured).
 * One gateway process tops out around 10 streamed req/s on the test laptop
   (LiteLLM per-chunk CPU cost); scale with workers/replicas.
-* **`docker compose up` was not verified end to end on the development
-  machine**: Docker Desktop kept failing (API 500/502, image builds aborted).
-  Tests, demo and benchmarks were run with native processes instead (see
-  docs/benchmarks.md). CI runs the tests on Linux with service containers.
+* `docker compose up` is verified **in CI on Linux** (the `compose` job builds
+  the image, starts the stack and runs `scripts/demo.py` against it), but it
+  was **not run on the Windows development machine**: Docker Desktop kept
+  failing there (API 500/502, aborted builds). Local tests, demo and
+  benchmarks used native processes instead (see docs/benchmarks.md).
 
 ## Future work
 

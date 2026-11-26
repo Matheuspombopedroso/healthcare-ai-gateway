@@ -55,7 +55,9 @@ python scripts/demo.py
 
 ## What to look at in the output
 
-Real output of one run (native gateway + mock, 2026-11-25):
+Real output of one run (native gateway + mock on the Windows dev machine,
+2026-11-25). The `compose` CI job runs the same script against the Docker
+stack on Linux and printed identical lines (the inputs are seeded):
 
 ```text
 == 1. one use case per tenant ==
