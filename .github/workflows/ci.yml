@@ -58,7 +58,13 @@ jobs:
       - name: Start stack
         run: docker compose up -d --build
       - name: Wait for gateway
-        run: curl -sf --retry 60 --retry-connrefused --retry-delay 2 http://localhost:8400/health
+        # Poll until uvicorn answers (connection resets are expected while it boots).
+        run: |
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:8400/health && exit 0
+            sleep 2
+          done
+          exit 1
       - name: Run demo (one request per tenant, isolation, fallback, balances)
         run: |
           pip install httpx pydantic
