@@ -3,7 +3,7 @@ name = "healthcare-ai-gateway"
 version = "0.1.0"
 description = "Multi-tenant generative AI gateway demo: LiteLLM routing, Redis quotas, Postgres credits, fallback, TTFT metrics."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.11"
 # Versions pinned to what the tests and benchmarks in this repo were run with.
 dependencies = [

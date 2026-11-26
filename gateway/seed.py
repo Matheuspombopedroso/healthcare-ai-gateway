@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from gateway.auth import hash_key
@@ -32,6 +32,11 @@ async def seed_tenants(
     keys = dict(os.environ) if keys is None else keys
     ids: dict[str, int] = {}
     async with engine.begin() as conn:
+        # Several gateway workers/replicas may start at once and all seed.
+        # A transaction-scoped advisory lock makes them take turns, so two
+        # processes never both try to INSERT the same new tenant.
+        if conn.dialect.name == "postgresql":
+            await conn.execute(text("SELECT pg_advisory_xact_lock(724001)"))
         for spec in specs:
             api_key = keys.get(spec.api_key_env)
             if not api_key:

@@ -65,7 +65,25 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-On Docker Desktop for Windows, if `127.0.0.1` port forwarding misbehaves, use
-the IPv6 loopback:
+### Without Docker
+
+Any Redis ≥ 5 and PostgreSQL ≥ 14 work. The published test runs and
+benchmarks used native processes on Windows: a throwaway Postgres cluster
+created with `initdb` and started with
+`pg_ctl -o "-p 15433" start`, plus a Windows build of Redis 5 on port 16380.
+Redis 5 does not speak RESP3, so add `?protocol=2` to the URL:
+
+```bash
+TEST_DATABASE_URL="postgresql+asyncpg://gateway:gateway@127.0.0.1:15433/gateway?ssl=disable" \
+TEST_REDIS_URL="redis://127.0.0.1:16380/15?protocol=2" pytest -q
+```
+
+The same variables without the `TEST_` prefix (`DATABASE_URL`, `REDIS_URL`)
+plus `MOCK_BASE_URL` and the `TENANT_KEY_*` values run the gateway itself:
+`uvicorn gateway.main:app --port 8400`.
+
+### Docker Desktop on Windows
+
+If `127.0.0.1` port forwarding misbehaves, use the IPv6 loopback:
 `TEST_DATABASE_URL=postgresql+asyncpg://gateway:gateway@[::1]:15432/gateway?ssl=disable`
 and `TEST_REDIS_URL=redis://[::1]:16379/15`.

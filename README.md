@@ -87,6 +87,10 @@ python scripts/demo.py               # one request per tenant, isolation, fallba
 Tenant keys default to local placeholders (`dev-clinibud-key`, …); override
 them via `.env` (see `.env.example`).
 
+Without Docker (how the published tests, demo and benchmarks were actually
+run), start any Redis and Postgres, the mock and the gateway as plain
+processes — see [docs/08](docs/08-deployment.md#without-docker).
+
 ## API examples
 
 The chat endpoint is OpenAI-compatible, so existing OpenAI SDK code only needs
@@ -164,7 +168,25 @@ Response headers: `x-request-id`, `x-gateway-served-model`, `x-gateway-fallback`
 See [docs/benchmarks.md](docs/benchmarks.md) for the commands, hardware and raw
 output.
 
-BENCHMARK_TABLE_PLACEHOLDER
+Measured on an Intel i7-1185G7 laptop (4 cores / 8 threads, 39.7 GiB RAM,
+Windows 11, Python 3.13), with native Redis and Postgres, against the **mock
+backend** (configured 50 ms TTFT, 10 ms/token; 36-token answers). The "direct"
+rows are the mock alone; the useful number is what the gateway adds.
+
+| Setup | Concurrency | req/s | TTFT p50 / p95 (ms) | Latency p50 / p95 (ms) |
+|---|---:|---:|---:|---:|
+| direct to mock | 1 | 1.64 | 61.6 / 64.1 | 607.1 / 635.2 |
+| gateway, 1 process | 1 | 1.47 | 77.8 / 87.9 | 678.9 / 731.4 |
+| direct to mock | 32 | 45.94 | 62.6 / 193.8 | 617.0 / 751.2 |
+| gateway, 1 process | 32 | 10.72 | 1048.7 / 2740.1 | 2634.6 / 4841.8 |
+| gateway, 4 workers | 32 | 28.94 | 187.2 / 553.1 | 991.1 / 1521.5 |
+
+* At concurrency 1 the gateway adds **+16 ms TTFT and +72 ms total latency (p50)**.
+* **One process is CPU-bound at ~10 req/s**: streaming through LiteLLM cost
+  78.9 ms of CPU per request vs 20.8 ms for a bare httpx client (measured).
+  Because the gateway is stateless, 4 workers gave 2.7× the throughput.
+* Numbers come from a busy development laptop, not a capacity test; no real
+  LLM was involved.
 
 ## Tests
 
@@ -194,6 +216,15 @@ GitHub Actions services) and the mock backend:
 * No mid-stream fallback; no response caching; no request/response logging
   beyond the ledger (deliberately: prompts may contain sensitive data).
 * Single-node Redis/Postgres; no HA.
+* With several uvicorn workers, each process has its own Prometheus registry,
+  so `/metrics` shows only the worker that answered (Prometheus multiprocess
+  mode is not configured).
+* One gateway process tops out around 10 streamed req/s on the test laptop
+  (LiteLLM per-chunk CPU cost); scale with workers/replicas.
+* **`docker compose up` was not verified end to end on the development
+  machine**: Docker Desktop kept failing (API 500/502, image builds aborted).
+  Tests, demo and benchmarks were run with native processes instead (see
+  docs/benchmarks.md). CI runs the tests on Linux with service containers.
 
 ## Future work
 

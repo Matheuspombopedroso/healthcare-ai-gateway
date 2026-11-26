@@ -48,8 +48,17 @@ It is run **twice** with identical settings:
 2. through the gateway (`--model fast-chat --key <loadtest key>`).
 
 Since the backend is the same, `gateway − direct` is the gateway's overhead.
-The run happens **inside the compose network** (`docker compose run bench`),
-so Docker Desktop's Windows port forwarding is not part of the measurement.
+
+The recorded runs used **native processes** (uvicorn, Redis, Postgres on the
+host) because Docker Desktop was unstable on the measurement machine. The
+compose `bench` service below is the intended containerised way to repeat
+them; it runs inside the compose network so Docker Desktop's Windows port
+forwarding is not part of the measurement — but it was not executed for
+the published numbers.
+
+A second script, `bench/cpu_per_request.py`, measures CPU per streamed
+request for LiteLLM versus a bare httpx client, which explains where the
+single-process throughput limit comes from.
 
 ## Reading the results
 
@@ -60,7 +69,9 @@ Results, hardware, commands and raw output are in
   model's performance;
 * the overhead column is the meaningful one for the gateway;
 * everything ran on one laptop that was also running other workloads, so
-  absolute numbers are indicative, not a capacity plan.
+  absolute numbers are indicative, not a capacity plan;
+* on Windows `asyncio.sleep(0.010)` really sleeps ~16.6 ms, so the mock streams
+  ~66 tokens/s instead of the configured 100.
 
 ## How to run just this part
 

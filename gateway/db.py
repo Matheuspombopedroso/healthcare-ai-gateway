@@ -28,6 +28,7 @@ from sqlalchemy import (
     String,
     Table,
     func,
+    text,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -99,6 +100,14 @@ def make_engine(database_url: str, pool_size: int = 10) -> AsyncEngine:
 
 
 async def create_schema(engine: AsyncEngine) -> None:
-    """Create tables if they do not exist (idempotent)."""
+    """Create tables if they do not exist (idempotent, safe to run concurrently).
+
+    ``CREATE TABLE IF NOT EXISTS`` is not safe when several processes run it
+    at the same moment (they race on the system catalog), which happens when
+    multiple gateway workers start together. A transaction-scoped advisory
+    lock serialises them; the later ones then find the tables already there.
+    """
     async with engine.begin() as conn:
+        if conn.dialect.name == "postgresql":
+            await conn.execute(text("SELECT pg_advisory_xact_lock(724000)"))
         await conn.run_sync(metadata.create_all)

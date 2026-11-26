@@ -30,7 +30,9 @@ yield "data: [DONE]\n\n"
 ```
 
 * **Latency** — `MOCK_TTFT_MS` (default 50) and `MOCK_INTER_TOKEN_MS`
-  (default 10, i.e. ~100 tokens/s per stream).
+  (default 10, i.e. ~100 tokens/s per stream on Linux; on Windows the
+  asyncio timer granularity makes it ~16 ms, i.e. ~60-66 tokens/s — see
+  docs/benchmarks.md).
 * **Answers** — canned per task: the demo prompts carry a marker like
   `[task:order_extraction]`; the mock returns a fixed text or JSON for it. The
   order-extraction answer is valid JSON so the demo can validate the
